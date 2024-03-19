@@ -1,0 +1,83 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "E:\\LocalDev\\SolverApp\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{592A5B7B-0FEE-4578-BF6B-74DBE17674AA}|SolverApp.csproj|e:\\localdev\\solverapp\\frmmain.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{592A5B7B-0FEE-4578-BF6B-74DBE17674AA}|SolverApp.csproj|solutionrelative:frmmain.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{592A5B7B-0FEE-4578-BF6B-74DBE17674AA}|SolverApp.csproj|E:\\LocalDev\\SolverApp\\frmmain.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{592A5B7B-0FEE-4578-BF6B-74DBE17674AA}|SolverApp.csproj|solutionrelative:frmmain.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{5036A783-B604-4C62-9C4F-E359A3ED020C}|..\\LinearAlgebra\\LinearAlgebra.csproj|e:\\localdev\\linearalgebra\\clinearalgebra.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{5036A783-B604-4C62-9C4F-E359A3ED020C}|..\\LinearAlgebra\\LinearAlgebra.csproj|e:\\localdev\\linearalgebra\\imachine.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "cLinearAlgebra.cs",
+              "DocumentMoniker": "E:\\LocalDev\\LinearAlgebra\\cLinearAlgebra.cs",
+              "RelativeDocumentMoniker": "..\\LinearAlgebra\\cLinearAlgebra.cs",
+              "ToolTip": "E:\\LocalDev\\LinearAlgebra\\cLinearAlgebra.cs",
+              "RelativeToolTip": "..\\LinearAlgebra\\cLinearAlgebra.cs",
+              "ViewState": "AQIAAC8RAAAAAAAAAADwv2ARAAAuAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-03-16T14:42:55.598Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "IMachine.cs",
+              "DocumentMoniker": "E:\\LocalDev\\LinearAlgebra\\IMachine.cs",
+              "RelativeDocumentMoniker": "..\\LinearAlgebra\\IMachine.cs",
+              "ToolTip": "E:\\LocalDev\\LinearAlgebra\\IMachine.cs",
+              "RelativeToolTip": "..\\LinearAlgebra\\IMachine.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAACUAAAAhAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-03-16T14:42:24.904Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "frmMain.cs",
+              "DocumentMoniker": "E:\\LocalDev\\SolverApp\\frmMain.cs",
+              "RelativeDocumentMoniker": "frmMain.cs",
+              "ToolTip": "E:\\LocalDev\\SolverApp\\frmMain.cs",
+              "RelativeToolTip": "frmMain.cs",
+              "ViewState": "AQIAAI8JAAAAAAAAAAAhwLsJAABEAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-03-16T00:07:31.86Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "frmMain.cs [Design]",
+              "DocumentMoniker": "E:\\LocalDev\\SolverApp\\frmMain.cs",
+              "RelativeDocumentMoniker": "frmMain.cs",
+              "ToolTip": "E:\\LocalDev\\SolverApp\\frmMain.cs [Design]",
+              "RelativeToolTip": "frmMain.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-03-16T00:06:57.225Z",
+              "EditorCaption": " [Design]"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

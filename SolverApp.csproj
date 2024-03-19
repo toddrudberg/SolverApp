@@ -74,6 +74,9 @@
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="csString">
+      <HintPath>..\BarrelTransformer\BarrelTransformer\DLL\csString.dll</HintPath>
+    </Reference>
     <Reference Include="FileIO, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>DLLs\FileIO.dll</HintPath>
@@ -149,10 +152,6 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Calculator\ClassStringCalc\ClassStringCalc.csproj">
-      <Project>{0BF12BCF-3FC2-4E26-8955-AA6FA1E6072F}</Project>
-      <Name>ClassStringCalc</Name>
-    </ProjectReference>
     <ProjectReference Include="..\LinearAlgebra\LinearAlgebra.csproj">
       <Project>{5036a783-b604-4c62-9c4f-e359a3ed020c}</Project>
       <Name>LinearAlgebra</Name>

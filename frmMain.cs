@@ -11,6 +11,7 @@ using SolverPlatform;
 using Electroimpact;
 using System.IO;
 using System.Threading;
+using Electroimpact.LinearAlgebra;
 
 
 namespace SolverApp
@@ -423,7 +424,7 @@ namespace SolverApp
            this.lblFileData.Text = fh.Data;
            this.lblFileSolver.Text = fh.SolverRoutine;
            this.lblFileGenerated.Text = fh.GeneratedSolverRoutine;
-        this.lblFileAdditional.Text = fh.AddlConfigFile;
+           this.lblFileAdditional.Text = fh.AddlConfigFile;
            MikesXmlSerializer.Save(fh, file);
 
            this.PopulateVariableBoxes();
@@ -640,6 +641,8 @@ namespace SolverApp
             //if (indexof >= 0)
             if (VariableName.StartsWith("BaseShift"))
               p.VarDecision.InitialValue[ii] *= 10.0;
+            if (VariableName.StartsWith("PartXform"))
+              p.VarDecision.InitialValue[ii] *= 10;
           }
           for (int ii = LinkKeys.Count; ii < LinkKeys.Count + AxisKeys.Count; ii++)
           { //We only ever do scaling anymore.
@@ -886,6 +889,8 @@ namespace SolverApp
         double multiply = 1.0;
         if (((string)LinkKeys[ii]).StartsWith("BaseShift"))
           multiply *= 10.0;
+        if (((string)LinkKeys[ii]).StartsWith("PartXform"))
+          multiply *= 10.0;
         myMachine.WriteAttribute((string)LinkKeys[ii], ev.Problem.VarDecision.Value[ii] / multiply);
 			}
 			#endregion
@@ -1114,6 +1119,18 @@ namespace SolverApp
 
       string[] myAxes = myMachine.GetAxisNames();
 
+      //Get the part transform
+
+      double p_X = myMachine.ReadAttribute("PartXform_X");
+      double p_Y = myMachine.ReadAttribute("PartXform_Y");
+      double p_Z = myMachine.ReadAttribute("PartXform_Z");
+      double p_rX = myMachine.ReadAttribute("PartXform_rX");
+      double p_rY = myMachine.ReadAttribute("PartXform_rY");
+      double p_rZ = myMachine.ReadAttribute("PartXform_rZ");
+      double d2r = Math.PI / 180.0;
+      c6dof PartXform = new c6dof(p_X, p_Y, p_Z, p_rX * d2r, p_rY * d2r, p_rZ * d2r);
+
+
       for (int ii = 0; ii < myPoints.Count; ii++)
       {
         cPoint p = (cPoint)myPoints[ii];
@@ -1131,9 +1148,19 @@ namespace SolverApp
         p.Bfwd = myMachine.rXrYrZ[1,0];
         p.Cfwd = zeroto360(myMachine.rXrYrZ[2, 0]);
 
-        double xErr = Math.Pow(p.Xtp - x, 2.0);
-        double yErr = Math.Pow(p.Ytp - y, 2.0);
-        double zErr = Math.Pow(p.Ztp - z, 2.0);
+        c6dof p_prime = new c6dof(p.Xtp, p.Ytp, p.Ztp, 0, 0, 0);
+
+        p_prime = new c6dof(PartXform.DotMe(p_prime.GetMatrix()));
+
+
+        //double xErr = Math.Pow(p.Xtp - x, 2.0);
+        //double yErr = Math.Pow(p.Ytp - y, 2.0);
+        //double zErr = Math.Pow(p.Ztp - z, 2.0);
+
+        double xErr = Math.Pow(p_prime.X - x, 2.0);
+        double yErr = Math.Pow(p_prime.Y - y, 2.0);
+        double zErr = Math.Pow(p_prime.Z - z, 2.0);
+
         if (!p.nXerr) xErrSum += xErr;
         if (!p.nYerr) yErrSum += yErr;
         if (!p.nZerr) zErrSum += zErr;
@@ -1377,12 +1404,31 @@ namespace SolverApp
     private double StandardDeviation(double AverageErr)
     {
       double Deviation = 0;
+
+      double p_X = myMachine.ReadAttribute("PartXform_X");
+      double p_Y = myMachine.ReadAttribute("PartXform_Y");
+      double p_Z = myMachine.ReadAttribute("PartXform_Z");
+      double p_rX = myMachine.ReadAttribute("PartXform_rX");
+      double p_rY = myMachine.ReadAttribute("PartXform_rY");
+      double p_rZ = myMachine.ReadAttribute("PartXform_rZ");
+      double d2r = Math.PI / 180.0;
+      c6dof PartXform = new c6dof(p_X, p_Y, p_Z, p_rX * d2r, p_rY * d2r, p_rZ * d2r);
+
+
       for (int ii = 0; ii < myPoints.Count; ii++)
       {
         cPoint pt = (cPoint)myPoints[ii];
-        double radialError = Math.Sqrt(Math.Pow(pt.Xtp - pt.Xfwd, 2.0) * myError.Xfact +
-                                       Math.Pow(pt.Ytp - pt.Yfwd, 2.0) * myError.YFact +
-                                       Math.Pow(pt.Ztp - pt.Zfwd, 2.0) * myError.ZFact);
+
+        c6dof p_prime = new c6dof(pt.Xtp, pt.Ytp, pt.Ztp, 0, 0, 0);
+
+        p_prime = new c6dof(PartXform.DotMe(p_prime.GetMatrix()));
+
+        //double radialError = Math.Sqrt(Math.Pow(pt.Xtp - pt.Xfwd, 2.0) * myError.Xfact +
+        //                       Math.Pow(pt.Ytp - pt.Yfwd, 2.0) * myError.YFact +
+        //                       Math.Pow(pt.Ztp - pt.Zfwd, 2.0) * myError.ZFact);
+        double radialError = Math.Sqrt(Math.Pow(pt.Xfwd - p_prime.X, 2.0) * myError.Xfact +
+                                       Math.Pow(pt.Yfwd - p_prime.Y, 2.0) * myError.YFact +
+                                       Math.Pow(pt.Zfwd - p_prime.Z, 2.0) * myError.ZFact);
         Deviation += Math.Pow(radialError - AverageErr, 2.0);
       }
       Deviation /= (double)myPoints.Count;
@@ -1431,34 +1477,40 @@ namespace SolverApp
 			FileOut += "out.xml";
 
 
-			using (XmlTextWriter x = new XmlTextWriter(FileOut, System.Text.Encoding.UTF8))
-			{
-        string[] AxisNames = myMachine.GetAxisNames();
-				x.Formatting = Formatting.Indented;
-				x.WriteStartDocument();
-				x.WriteStartElement("Electroimpact_SolverResultToolPoints");
-				for (int ii = 0; ii < myPoints.Count; ii++)
-				{
-					x.WriteStartElement("Data");
-					x.WriteAttributeString("Xtp", ((cPoint)myPoints[ii]).Xfwd.ToString("F4"));
-					x.WriteAttributeString("Ytp", ((cPoint)myPoints[ii]).Yfwd.ToString("F4"));
-					x.WriteAttributeString("Ztp", ((cPoint)myPoints[ii]).Zfwd.ToString("F4"));
-					x.WriteAttributeString("Atp", ((cPoint)myPoints[ii]).Afwd.ToString("F4"));
-					x.WriteAttributeString("Btp", ((cPoint)myPoints[ii]).Bfwd.ToString("F4"));
-					x.WriteAttributeString("Ctp", ((cPoint)myPoints[ii]).Cfwd.ToString("F4"));
-          for (int axisnum = 0; axisnum < AxisNames.Length; axisnum++)
-          {
-            x.WriteAttributeString(AxisNames[axisnum], ((cPoint)myPoints[ii]).GetMachinePosition(AxisNames[axisnum]).ToString("F4"));
-          }
-          //x.WriteAttributeString("Xcomp", (((cPoint)myPoints[ii]).Xfwd - ((cPoint)myPoints[ii]).GetMachinePosition("Xm")).ToString("F4"));
-          //x.WriteAttributeString("Ycomp", (((cPoint)myPoints[ii]).Yfwd - ((cPoint)myPoints[ii]).GetMachinePosition("Ym")).ToString("F4"));
-          //x.WriteAttributeString("Zcomp", (((cPoint)myPoints[ii]).Zfwd - ((cPoint)myPoints[ii]).GetMachinePosition("Zm")).ToString("F4"));
-          x.WriteEndElement();
-				}
-				x.WriteEndElement();
-				x.Flush();
-				x.Close();
-			}
+
+      TransformPointsForOutput(FileOut);
+
+
+   //   using (XmlTextWriter x = new XmlTextWriter(FileOut, System.Text.Encoding.UTF8))
+			//{
+   //     string[] AxisNames = myMachine.GetAxisNames();
+			//	x.Formatting = Formatting.Indented;
+			//	x.WriteStartDocument();
+			//	x.WriteStartElement("Electroimpact_SolverResultToolPoints");
+
+
+			//	for (int ii = 0; ii < myPoints.Count; ii++)
+			//	{
+			//		x.WriteStartElement("Data");
+			//		x.WriteAttributeString("Xtp", ((cPoint)myPoints[ii]).Xfwd.ToString("F4"));
+			//		x.WriteAttributeString("Ytp", ((cPoint)myPoints[ii]).Yfwd.ToString("F4"));
+			//		x.WriteAttributeString("Ztp", ((cPoint)myPoints[ii]).Zfwd.ToString("F4"));
+			//		x.WriteAttributeString("Atp", ((cPoint)myPoints[ii]).Afwd.ToString("F4"));
+			//		x.WriteAttributeString("Btp", ((cPoint)myPoints[ii]).Bfwd.ToString("F4"));
+			//		x.WriteAttributeString("Ctp", ((cPoint)myPoints[ii]).Cfwd.ToString("F4"));
+   //       for (int axisnum = 0; axisnum < AxisNames.Length; axisnum++)
+   //       {
+   //         x.WriteAttributeString(AxisNames[axisnum], ((cPoint)myPoints[ii]).GetMachinePosition(AxisNames[axisnum]).ToString("F4"));
+   //       }
+   //       //x.WriteAttributeString("Xcomp", (((cPoint)myPoints[ii]).Xfwd - ((cPoint)myPoints[ii]).GetMachinePosition("Xm")).ToString("F4"));
+   //       //x.WriteAttributeString("Ycomp", (((cPoint)myPoints[ii]).Yfwd - ((cPoint)myPoints[ii]).GetMachinePosition("Ym")).ToString("F4"));
+   //       //x.WriteAttributeString("Zcomp", (((cPoint)myPoints[ii]).Zfwd - ((cPoint)myPoints[ii]).GetMachinePosition("Zm")).ToString("F4"));
+   //       x.WriteEndElement();
+			//	}
+			//	x.WriteEndElement();
+			//	x.Flush();
+			//	x.Close();
+			//}
 		}
 
 		private void tmrStatus_Tick(object sender, EventArgs e)
@@ -1762,6 +1814,18 @@ namespace SolverApp
           if (vars[ii].IndexOf("BaseShift") < 0)
             this.lstDHAttribs.Items.Add(vars[ii], false);
 				}
+
+        //lstDHAttribs.Items.Add("PartXform_X");
+        //lstDHAttribs.Items.Add("PartXform_Y");
+        //lstDHAttribs.Items.Add("PartXform_Z");
+        //lstDHAttribs.Items.Add("PartXform_rX");
+        //lstDHAttribs.Items.Add("PartXform_rY");
+        //lstDHAttribs.Items.Add("PartXform_rZ");
+        //for (int ii = 0; ii < vars.Length; ii++)
+        //{
+        //  if (vars[ii].IndexOf("PartXform") < 0)
+        //    this.lstDHAttribs.Items.Add(vars[ii], false);
+        //}
 
         this.lstAxisAttribs.Items.Clear();
         string[] axnames = myMachine.GetAxisNames(false);
@@ -2361,9 +2425,9 @@ namespace SolverApp
 		}
 
 		private void btnSaveData_Click(object sender, EventArgs e)
-		{
-			//string FileOut = (this.lblFileConfig.Text);
-			//this.myMachine.ToFile(FileOut);
+    {
+      //string FileOut = (this.lblFileConfig.Text);
+      //this.myMachine.ToFile(FileOut);
 
       this.btnSolveOnce_Click(null, null);
 
@@ -2372,34 +2436,69 @@ namespace SolverApp
         System.Windows.Forms.MessageBox.Show("No points to save!");
         return;
       }
-      
+
       string FileOut = this.lblFileData.Text;
-			FileOut = FileOut.Substring(0, FileOut.Length - 4);
-			FileOut += "out.xml";
+      FileOut = FileOut.Substring(0, FileOut.Length - 4);
+      FileOut += "out.xml";
 
-			using (XmlTextWriter x = new XmlTextWriter(FileOut, System.Text.Encoding.UTF8))
-			{
-				x.Formatting = Formatting.Indented;
-				x.WriteStartDocument();
-				x.WriteStartElement("Electroimpact_SolverResultToolPoints");
-				for (int ii = 0; ii < myPoints.Count; ii++)
-				{
-					x.WriteStartElement("Data");
-					x.WriteAttributeString("Xtp", ((cPoint)myPoints[ii]).Xfwd.ToString("F4"));
-					x.WriteAttributeString("Ytp", ((cPoint)myPoints[ii]).Yfwd.ToString("F4"));
-					x.WriteAttributeString("Ztp", ((cPoint)myPoints[ii]).Zfwd.ToString("F4"));
-					x.WriteAttributeString("Atp", ((cPoint)myPoints[ii]).Afwd.ToString("F4"));
-					x.WriteAttributeString("Btp", ((cPoint)myPoints[ii]).Bfwd.ToString("F4"));
-					x.WriteAttributeString("Ctp", ((cPoint)myPoints[ii]).Cfwd.ToString("F4"));
-					x.WriteEndElement();
-				}
-				x.WriteEndElement();
-				x.Flush();
-				x.Close();
-			}
-		}
+      TransformPointsForOutput(FileOut);
+    }
 
-		private void btnSaveConfig_Click(object sender, EventArgs e)
+    private void TransformPointsForOutput(string FileOut)
+    {
+      double p_X = myMachine.ReadAttribute("PartXform_X");
+      double p_Y = myMachine.ReadAttribute("PartXform_Y");
+      double p_Z = myMachine.ReadAttribute("PartXform_Z");
+      double p_rX = myMachine.ReadAttribute("PartXform_rX");
+      double p_rY = myMachine.ReadAttribute("PartXform_rY");
+      double p_rZ = myMachine.ReadAttribute("PartXform_rZ");
+      double d2r = Math.PI / 180.0;
+      c6dof PartXform = new c6dof(p_X, p_Y, p_Z, p_rX * d2r, p_rY * d2r, p_rZ * d2r);
+      //PartXform.InvertMe();
+      PartXform = new c6dof(PartXform.Inverse());
+
+      using (XmlTextWriter x = new XmlTextWriter(FileOut, System.Text.Encoding.UTF8))
+      {
+        x.Formatting = Formatting.Indented;
+        x.WriteStartDocument();
+        x.WriteStartElement("Electroimpact_SolverResultToolPoints");
+        for (int ii = 0; ii < myPoints.Count; ii++)
+        {
+          double fwd_x = ((cPoint)myPoints[ii]).Xfwd;
+          double fwd_y = ((cPoint)myPoints[ii]).Yfwd;
+          double fwd_z = ((cPoint)myPoints[ii]).Zfwd;
+          double fwd_rx = ((cPoint)myPoints[ii]).Afwd;
+          double fwd_ry = ((cPoint)myPoints[ii]).Bfwd;
+          double fwd_rz = ((cPoint)myPoints[ii]).Cfwd;
+
+          c6dof p_prime = new c6dof(fwd_x, fwd_y, fwd_z, fwd_rx * d2r, fwd_ry * d2r, fwd_rz * d2r);
+
+          c6dof newpoint = new c6dof(PartXform.DotMe(p_prime.GetMatrix()));
+
+
+          x.WriteStartElement("Data");
+          //x.WriteAttributeString("Xtp", ((cPoint)myPoints[ii]).Xfwd.ToString("F4"));
+          //x.WriteAttributeString("Ytp", ((cPoint)myPoints[ii]).Yfwd.ToString("F4"));
+          //x.WriteAttributeString("Ztp", ((cPoint)myPoints[ii]).Zfwd.ToString("F4"));
+          //x.WriteAttributeString("Atp", ((cPoint)myPoints[ii]).Afwd.ToString("F4"));
+          //x.WriteAttributeString("Btp", ((cPoint)myPoints[ii]).Bfwd.ToString("F4"));
+          //x.WriteAttributeString("Ctp", ((cPoint)myPoints[ii]).Cfwd.ToString("F4"));
+
+          x.WriteAttributeString("Xtp", newpoint.X.ToString("F4"));
+          x.WriteAttributeString("Ytp", newpoint.Y.ToString("F4"));
+          x.WriteAttributeString("Ztp", newpoint.Z.ToString("F4"));
+          x.WriteAttributeString("Atp", newpoint.rX.ToString("F4"));
+          x.WriteAttributeString("Btp", newpoint.rY.ToString("F4"));
+          x.WriteAttributeString("Ctp", newpoint.rZ.ToString("F4"));
+          x.WriteEndElement();
+        }
+        x.WriteEndElement();
+        x.Flush();
+        x.Close();
+      }
+    }
+
+    private void btnSaveConfig_Click(object sender, EventArgs e)
 		{
       if (myMachine == null || !myMachine.IsHookedUp)
       {

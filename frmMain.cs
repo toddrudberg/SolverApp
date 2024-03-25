@@ -12,6 +12,7 @@ using Electroimpact;
 using System.IO;
 using System.Threading;
 using Electroimpact.LinearAlgebra;
+using System.IO.Ports;
 
 
 namespace SolverApp
@@ -145,26 +146,31 @@ namespace SolverApp
 			public double Y = 0;
 			public double Z = 0;
 			public double Total = 0;
+      public double TotalOrient = 0;
 			public int index = 0;
 			public int count = 100;
 			public bool Abort = false;
       public bool Pause = false;
       public double StandardDeviation = 0;
       public double AverageError = 0;
-      public double framelessSumsq = 0;
       public double sqSumSqError = 0;
 
 			public SolverPlatform.Optimize_Status OptimizeStatus = Optimize_Status.Optimal;
 			public new string[] ToString()
 			{
-        string[] report = { "X Error: " + X.ToString("F10"), "Y Error: " + Y.ToString("F10"), "Z Error: " + Z.ToString("F10"), "Total:   " + Total.ToString("F10"), "StdDev: " + StandardDeviation.ToString("F10"), "Avg: " + AverageError.ToString("F10"), "A3s: " + (AverageError + 3.0 * StandardDeviation).ToString("F10")};//, "FlSumsq: " + framelessSumsq.ToString("F3") };
+        string[] report = { "X Error: " + X.ToString("F10"), 
+                            "Y Error: " + Y.ToString("F10"), 
+                            "Z Error: " + Z.ToString("F10"), 
+                            "Total:   " + Total.ToString("F10"), 
+                            "TotalOrient: " + TotalOrient.ToString("F10"),
+                            "StdDev: " + StandardDeviation.ToString("F10"), 
+                            "Avg: " + AverageError.ToString("F10"), 
+                            "A3s: " + (AverageError + 3.0 * StandardDeviation).ToString("F10")};
 				return report;
 			}
 		}
 
     cError myError = new cError();
-    cError myError1 = new cError();
-    cError myError2 = new cError();
 
 		class cPoint
 		{
@@ -182,6 +188,19 @@ namespace SolverApp
 			{
         get { return (double)myAxisHash["Zmeas"]; }
       }
+      public double rxTP
+      {
+        get { return (double)myAxisHash["rXmeas"]; }
+      }
+      public double ryTP
+      {
+        get { return (double)myAxisHash["rYmeas"]; }
+      }
+      public double rzTP
+      {
+        get { return (double)myAxisHash["rZmeas"]; }
+      }
+
       public bool nXerr
       {
         get { return (bool)myAxisHash["nXerr"]; }
@@ -224,6 +243,18 @@ namespace SolverApp
 				sz = elem.GetAttribute("Zmeas");
         v = Double.TryParse(sz, out v) ? v : 0.0;
         myAxisHash.Add("Zmeas", v);
+
+        sz = elem.GetAttribute("rXmeas");
+        v = Double.TryParse(sz, out v) ? v : 0.0;
+        myAxisHash.Add("rXmeas", v);
+
+        sz = elem.GetAttribute("rYmeas");
+        v = Double.TryParse(sz, out v) ? v : 0.0;
+        myAxisHash.Add("rYmeas", v);
+
+        sz = elem.GetAttribute("rZmeas");
+        v = Double.TryParse(sz, out v) ? v : 0.0;
+        myAxisHash.Add("rZmeas", v);
 
         sz = elem.GetAttribute("nXerr");
         myAxisHash.Add("nXerr", sz == "x");
@@ -1026,16 +1057,6 @@ namespace SolverApp
 			return Engine_Action.Continue;
 		}
 
-    //private void CalcErrorThread1()
-    //{
-    //  CalculateError1();
-    //  CaclulateErrorEvent1.Set();
-    //}
-    //private void CalcErrorThread2()
-    //{
-    //  CalculateError2();
-    //  CaclulateErrorEvent2.Set();
-    //}
 
     private void TrimMyPoints()
     {
@@ -1082,9 +1103,17 @@ namespace SolverApp
       public double X = 0;
       public double Y = 0;
       public double Z = 0;
-      public double A = 0;
-      public double B = 0;
-      public double C = 0;
+      public double rX = 0;
+      public double rY = 0;
+      public double rZ = 0;
+
+      public double ErrorMagnitudeLinear
+      { get
+        {
+          return Math.Sqrt(X * X + Y * Y + Z * Z);
+        } 
+      }
+
     }
 
     private double zeroto360(double input)
@@ -1105,17 +1134,14 @@ namespace SolverApp
 
     private double CalculateError()
     {
-      double xErrSum = 0;
-      double yErrSum = 0;
-      double zErrSum = 0;
+      cTP ErrSumTP = new cTP();
       double ErrSum = 0;
-      //double framelessX = 0;
-      //double framelessY = 0;
-      //double framelessZ = 0;
+      double ErrSumOrient = 0;
 
-      cTP lastMeasured = new cTP();
-      cTP lastCalced = new cTP();
-      cTP deltaDelta = new cTP();
+
+      //cTP lastMeasured = new cTP();
+      //cTP lastCalced = new cTP();
+      //cTP deltaDelta = new cTP();
 
       string[] myAxes = myMachine.GetAxisNames();
 
@@ -1148,7 +1174,7 @@ namespace SolverApp
         p.Bfwd = myMachine.rXrYrZ[1,0];
         p.Cfwd = zeroto360(myMachine.rXrYrZ[2, 0]);
 
-        c6dof p_prime = new c6dof(p.Xtp, p.Ytp, p.Ztp, 0, 0, 0);
+        c6dof p_prime = new c6dof(p.Xtp, p.Ytp, p.Ztp, p.rxTP.DegreesToRadians(), p.ryTP.DegreesToRadians(), p.rzTP.DegreesToRadians());
 
         p_prime = new c6dof(PartXform.DotMe(p_prime.GetMatrix()));
 
@@ -1161,238 +1187,46 @@ namespace SolverApp
         double yErr = Math.Pow(p_prime.Y - y, 2.0);
         double zErr = Math.Pow(p_prime.Z - z, 2.0);
 
-        if (!p.nXerr) xErrSum += xErr;
-        if (!p.nYerr) yErrSum += yErr;
-        if (!p.nZerr) zErrSum += zErr;
-        ErrSum += Math.Sqrt(xErr * myError.Xfact + yErr * myError.YFact + zErr * myError.ZFact);
+        double rxErr = Math.Pow((p_prime.rX.R2D() - p.Afwd).m180p180(), 2.0);
+        double ryErr = Math.Pow((p_prime.rY.R2D() - p.Bfwd).m180p180(), 2.0);
+        double rzErr = Math.Pow((p_prime.rZ.R2D() - p.Cfwd).m180p180(), 2.0);
 
-        //Frameless section
-        //if (ii > 0)
-        //{
-        //  framelessX += Math.Pow((p.Xtp - lastMeasured.X) - (p.Xfwd - lastCalced.X), 2.0);
-        //  framelessY += Math.Pow((p.Ytp - lastMeasured.Y) - (p.Yfwd - lastCalced.Y), 2.0);
-        //  framelessZ += Math.Pow((p.Ztp - lastMeasured.Z) - (p.Zfwd - lastCalced.Z), 2.0);
-        //}
-        lastMeasured.X = p.Xtp;
-        lastMeasured.Y = p.Ytp;
-        lastMeasured.Z = p.Ztp;
-        lastCalced.X = p.Xfwd;
-        lastCalced.Y = p.Yfwd;
-        lastCalced.Z = p.Zfwd;
+        if (!p.nXerr) ErrSumTP.X += xErr;
+        if (!p.nYerr) ErrSumTP.Y += yErr;
+        if (!p.nZerr) ErrSumTP.Z += zErr;
+
+        ErrSumTP.rX += rxErr;
+        ErrSumTP.rY += ryErr;
+        ErrSumTP.rZ += rzErr;
+
+        //we never use this Xfact etc, it'd be sweet to irradicate all references to this. 
+        ErrSum += Math.Sqrt(xErr * myError.Xfact + yErr * myError.YFact + zErr * myError.ZFact);
+        ErrSumOrient += Math.Sqrt(rxErr + ryErr + rzErr);
       }
 
       double Error = 0.0;
       System.Threading.Monitor.Enter(this.myError);
-      this.myError.X = Math.Sqrt(xErrSum) / (double)myPoints.Count;
-      this.myError.Y = Math.Sqrt(yErrSum) / (double)myPoints.Count;
-      this.myError.Z = Math.Sqrt(zErrSum) / (double)myPoints.Count;
-      this.myError.Total = Math.Sqrt(xErrSum + yErrSum + zErrSum) / (double)myPoints.Count;
+      this.myError.X = Math.Sqrt(ErrSumTP.X) / (double)myPoints.Count;
+      this.myError.Y = Math.Sqrt(ErrSumTP.Y) / (double)myPoints.Count;
+      this.myError.Z = Math.Sqrt(ErrSumTP.Z) / (double)myPoints.Count;
+      this.myError.Total = Math.Sqrt(ErrSumTP.X + ErrSumTP.Y + ErrSumTP.Z) / (double)myPoints.Count;
+      this.myError.TotalOrient = Math.Sqrt(ErrSumTP.rX + ErrSumTP.rY + ErrSumTP.rZ) / (double)myPoints.Count;
       this.myError.AverageError = ErrSum / (double)myPoints.Count;
       double StdDev = StandardDeviation(this.myError.AverageError);
       this.myError.StandardDeviation = StdDev;
 
-      //double framelesserror = 0;
-      //for (int ii = 0; ii < myPoints.Count - 1; ii++)
-      //{
-      //  for (int jj = ii + 1; jj < myPoints.Count; jj++)
-      //  {
-      //    if (jj != ii)
-      //      framelesserror += diff((cPoint)myPoints[ii], (cPoint)myPoints[jj]);
-      //  }
-      //}
 
       if (opnSumSquares.Checked)
-        Error = Math.Sqrt((myError.Xfact * xErrSum) + (myError.YFact * yErrSum) + (myError.ZFact * zErrSum));
-      //else if (opnFlatten.Checked)
-      //  Error = myError.AverageError + 5.0 * myError.StandardDeviation;
-      //else
-      //  Error = framelesserror;
+        Error = Math.Sqrt(ErrSumTP.X + ErrSumTP.Y + ErrSumTP.Z + ErrSumTP.rX + ErrSumTP.rY + ErrSumTP.rZ);
+        //Error = Math.Sqrt(ErrSumTP.X + ErrSumTP.Y + ErrSumTP.Z);
+
 
       myError.sqSumSqError = Error;
-      //myError.framelessSumsq = framelesserror;
+
       System.Threading.Monitor.Exit(this.myError);
 
       return Error * Error;
     }
-    //private double CalculateError1()
-    //{
-    //  double xErrSum = 0;
-    //  double yErrSum = 0;
-    //  double zErrSum = 0;
-    //  double ErrSum = 0;
-    //  //double framelessX = 0;
-    //  //double framelessY = 0;
-    //  //double framelessZ = 0;
-
-    //  cTP lastMeasured = new cTP();
-    //  cTP lastCalced = new cTP();
-    //  cTP deltaDelta = new cTP();
-
-    //  string[] myAxes = myMachine1.GetAxisNames();
-
-    //  for (int ii = 0; ii < myPoints.Count / 2; ii++)
-    //  {
-    //    cPoint p = (cPoint)myPoints[ii];
-    //    for (int kk = 0; kk < myAxes.Length; kk++)
-    //      myMachine1.WriteAxisPosition(myAxes[kk], p.GetMachinePosition(myAxes[kk]));
-    //    double x = myMachine1.X;
-    //    double y = myMachine1.Y;
-    //    double z = myMachine1.Z;
-
-    //    //Display stuff
-    //    p.Xfwd = x;
-    //    p.Yfwd = y;
-    //    p.Zfwd = z;
-    //    p.Afwd = myMachine1.rXrYrZ[0, 0];
-    //    p.Bfwd = myMachine1.rXrYrZ[1, 0];
-    //    p.Cfwd = zeroto360(myMachine1.rXrYrZ[2, 0]);
-
-
-    //    double xErr = Math.Pow(p.Xtp - x, 2.0);
-    //    double yErr = Math.Pow(p.Ytp - y, 2.0);
-    //    double zErr = Math.Pow(p.Ztp - z, 2.0);
-    //    xErrSum += xErr;
-    //    yErrSum += yErr;
-    //    zErrSum += zErr;
-    //    ErrSum += Math.Sqrt(xErr * myError.Xfact + yErr * myError.YFact + zErr * myError.ZFact);
-
-    //    //Frameless section
-    //    //if (ii > 0)
-    //    //{
-    //    //  framelessX += Math.Pow((p.Xtp - lastMeasured.X) - (p.Xfwd - lastCalced.X), 2.0);
-    //    //  framelessY += Math.Pow((p.Ytp - lastMeasured.Y) - (p.Yfwd - lastCalced.Y), 2.0);
-    //    //  framelessZ += Math.Pow((p.Ztp - lastMeasured.Z) - (p.Zfwd - lastCalced.Z), 2.0);
-    //    //}
-    //    lastMeasured.X = p.Xtp;
-    //    lastMeasured.Y = p.Ytp;
-    //    lastMeasured.Z = p.Ztp;
-    //    lastCalced.X = p.Xfwd;
-    //    lastCalced.Y = p.Yfwd;
-    //    lastCalced.Z = p.Zfwd;
-    //  }
-
-    //  double Error = 0.0;
-    //  System.Threading.Monitor.Enter(this.myError1);
-    //  this.myError1.X = Math.Sqrt(xErrSum) * 100.0 / (double)myPoints.Count;
-    //  this.myError1.Y = Math.Sqrt(yErrSum) * 100.0 / (double)myPoints.Count;
-    //  this.myError1.Z = Math.Sqrt(zErrSum) * 100.0 / (double)myPoints.Count;
-    //  this.myError1.Total = Math.Sqrt(xErrSum + yErrSum + zErrSum) * 100.0 / (double)myPoints.Count;
-    //  this.myError1.AverageError = ErrSum / ((double)myPoints.Count / 2.0);
-    //  double StdDev = StandardDeviation(this.myError1.AverageError);
-    //  this.myError1.StandardDeviation = StdDev;
-
-    //  double framelesserror = 0;
-    //  //for (int ii = 0; ii < myPoints.Count - 1; ii++)
-    //  //{
-    //  //  for (int jj = ii + 1; jj < myPoints.Count; jj++)
-    //  //  {
-    //  //    if (jj != ii)
-    //  //      framelesserror += diff((cPoint)myPoints[ii], (cPoint)myPoints[jj]);
-    //  //  }
-    //  //}
-
-    //  if (opnSumSquares.Checked)
-    //    Error = Math.Sqrt((myError.Xfact * xErrSum) + (myError.YFact * yErrSum) + (myError.ZFact * zErrSum));
-    //  //else if (opnFlatten.Checked)
-    //  //  Error = myError1.AverageError + 5.0 * myError1.StandardDeviation;
-    //  //else
-    //  //  Error = framelesserror;
-
-    //  myError1.sqSumSqError = Error;
-    //  myError1.framelessSumsq = framelesserror;
-    //  System.Threading.Monitor.Exit(this.myError1);
-
-    //  return Error * Error;
-    //}
-    //private double CalculateError2()
-    //{
-    //  double xErrSum = 0;
-    //  double yErrSum = 0;
-    //  double zErrSum = 0;
-    //  double ErrSum = 0;
-    //  //double framelessX = 0;
-    //  //double framelessY = 0;
-    //  //double framelessZ = 0;
-
-    //  cTP lastMeasured = new cTP();
-    //  cTP lastCalced = new cTP();
-    //  cTP deltaDelta = new cTP();
-
-    //  string[] myAxes = myMachine2.GetAxisNames();
-
-    //  for (int ii = myPoints.Count / 2; ii < myPoints.Count; ii++)
-    //  {
-    //    cPoint p = (cPoint)myPoints[ii];
-    //    for (int kk = 0; kk < myAxes.Length; kk++)
-    //      myMachine2.WriteAxisPosition(myAxes[kk], p.GetMachinePosition(myAxes[kk]));
-    //    double x = myMachine2.X;
-    //    double y = myMachine2.Y;
-    //    double z = myMachine2.Z;
-
-    //    //Display stuff
-    //    p.Xfwd = x;
-    //    p.Yfwd = y;
-    //    p.Zfwd = z;
-    //    p.Afwd = myMachine2.rXrYrZ[0, 0];
-    //    p.Bfwd = myMachine2.rXrYrZ[1, 0];
-    //    p.Cfwd = zeroto360(myMachine2.rXrYrZ[2, 0]);
-
-    //    double xErr = Math.Pow(p.Xtp - x, 2.0);
-    //    double yErr = Math.Pow(p.Ytp - y, 2.0);
-    //    double zErr = Math.Pow(p.Ztp - z, 2.0);
-    //    xErrSum += xErr;
-    //    yErrSum += yErr;
-    //    zErrSum += zErr;
-    //    ErrSum += Math.Sqrt(xErr * myError.Xfact + yErr * myError.YFact + zErr * myError.ZFact);
-
-    //    //Frameless section
-    //    //if (ii > 0)
-    //    //{
-    //    //  framelessX += Math.Pow((p.Xtp - lastMeasured.X) - (p.Xfwd - lastCalced.X), 2.0);
-    //    //  framelessY += Math.Pow((p.Ytp - lastMeasured.Y) - (p.Yfwd - lastCalced.Y), 2.0);
-    //    //  framelessZ += Math.Pow((p.Ztp - lastMeasured.Z) - (p.Zfwd - lastCalced.Z), 2.0);
-    //    //}
-    //    lastMeasured.X = p.Xtp;
-    //    lastMeasured.Y = p.Ytp;
-    //    lastMeasured.Z = p.Ztp;
-    //    lastCalced.X = p.Xfwd;
-    //    lastCalced.Y = p.Yfwd;
-    //    lastCalced.Z = p.Zfwd;
-    //  }
-
-    //  double Error = 0.0;
-    //  System.Threading.Monitor.Enter(this.myError2);
-    //  this.myError2.X = Math.Sqrt(xErrSum) * 100.0 / (double)myPoints.Count;
-    //  this.myError2.Y = Math.Sqrt(yErrSum) * 100.0 / (double)myPoints.Count;
-    //  this.myError2.Z = Math.Sqrt(zErrSum) * 100.0 / (double)myPoints.Count;
-    //  this.myError2.Total = Math.Sqrt(xErrSum + yErrSum + zErrSum) * 100.0 / (double)myPoints.Count;
-    //  this.myError2.AverageError = ErrSum / ((double)myPoints.Count / 2.0);
-    //  double StdDev = StandardDeviation(this.myError2.AverageError);
-    //  this.myError2.StandardDeviation = StdDev;
-
-    //  double framelesserror = 0;
-    //  //for (int ii = 0; ii < myPoints.Count - 1; ii++)
-    //  //{
-    //  //  for (int jj = ii + 1; jj < myPoints.Count; jj++)
-    //  //  {
-    //  //    if (jj != ii)
-    //  //      framelesserror += diff((cPoint)myPoints[ii], (cPoint)myPoints[jj]);
-    //  //  }
-    //  //}
-
-    //  if (opnSumSquares.Checked)
-    //    Error = Math.Sqrt((myError.Xfact * xErrSum) + (myError.YFact * yErrSum) + (myError.ZFact * zErrSum));
-    //  //else if (opnFlatten.Checked)
-    //  //  Error = myError2.AverageError + 5.0 * myError2.StandardDeviation;
-    //  //else
-    //  //  Error = framelesserror;
-
-    //  myError2.sqSumSqError = Error;
-    //  myError2.framelessSumsq = framelesserror;
-    //  System.Threading.Monitor.Exit(this.myError2);
-
-    //  return Error * Error;
-    //}
 
     private double diff(cPoint p1, cPoint p2)
     {
@@ -1429,6 +1263,8 @@ namespace SolverApp
         double radialError = Math.Sqrt(Math.Pow(pt.Xfwd - p_prime.X, 2.0) * myError.Xfact +
                                        Math.Pow(pt.Yfwd - p_prime.Y, 2.0) * myError.YFact +
                                        Math.Pow(pt.Zfwd - p_prime.Z, 2.0) * myError.ZFact);
+
+
         Deviation += Math.Pow(radialError - AverageErr, 2.0);
       }
       Deviation /= (double)myPoints.Count;
@@ -2487,9 +2323,9 @@ namespace SolverApp
           x.WriteAttributeString("Xtp", newpoint.X.ToString("F4"));
           x.WriteAttributeString("Ytp", newpoint.Y.ToString("F4"));
           x.WriteAttributeString("Ztp", newpoint.Z.ToString("F4"));
-          x.WriteAttributeString("Atp", newpoint.rX.ToString("F4"));
-          x.WriteAttributeString("Btp", newpoint.rY.ToString("F4"));
-          x.WriteAttributeString("Ctp", newpoint.rZ.ToString("F4"));
+          x.WriteAttributeString("Atp", newpoint.rX.R2D().ToString("F4"));
+          x.WriteAttributeString("Btp", newpoint.rY.R2D().ToString("F4"));
+          x.WriteAttributeString("Ctp", newpoint.rZ.R2D().ToString("F4"));
           x.WriteEndElement();
         }
         x.WriteEndElement();
